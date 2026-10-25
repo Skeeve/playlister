@@ -116,6 +116,7 @@ func main() {
 		cfgDir, _ = os.UserHomeDir()
 	}
 	s := &server{sem: make(chan struct{}, 4), cfgPath: filepath.Join(cfgDir, "playlister", "config.json")}
+	s.lastPing.Store(time.Now().UnixNano())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/scan", apiGuard(s.handleScan, "POST"))
@@ -130,6 +131,10 @@ func main() {
 	mux.HandleFunc("/api/quit", apiGuard(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true})
 		go func() { time.Sleep(300 * time.Millisecond); os.Exit(0) }()
+	}, "POST"))
+	mux.HandleFunc("/api/ping", apiGuard(func(w http.ResponseWriter, r *http.Request) {
+		s.lastPing.Store(time.Now().UnixNano())
+		writeJSON(w, 200, map[string]any{"ok": true})
 	}, "POST"))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -170,11 +175,29 @@ func main() {
 		host = "localhost"
 	}
 	url := fmt.Sprintf("http://%s/", net.JoinHostPort(host, strconv.Itoa(addr.Port)))
-	fmt.Printf("Playlister %s running at %s  (quit: Ctrl+C or the button in the UI)\n", version, url)
+	fmt.Printf("Playlister %s running at %s  (quit: Ctrl+C, the button in the UI, "+
+		"or it quits on its own a few minutes after the browser closes)\n", version, url)
 	if !*noBrowser {
 		go openBrowser(url, browserFor())
 	}
+	go watchBrowser(s)
 	if err := http.Serve(ln, mux); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
+	}
+}
+
+// watchBrowser quits the program once the UI's heartbeat (/api/ping) has
+// been missing for pingTimeout: the browser was closed or crashed, and
+// nobody is left to click the quit button.
+const pingTimeout = 5 * time.Minute
+
+func watchBrowser(s *server) {
+	t := time.NewTicker(15 * time.Second)
+	defer t.Stop()
+	for range t.C {
+		if time.Since(time.Unix(0, s.lastPing.Load())) > pingTimeout {
+			log.Printf("no browser heartbeat for %v, quitting", pingTimeout)
+			os.Exit(0)
+		}
 	}
 }

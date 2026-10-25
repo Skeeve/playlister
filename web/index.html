@@ -1062,7 +1062,12 @@ $("settingsDialog").addEventListener("close", () => {
 });
 $("themeBtn").onclick = () => { applyTheme(NEXT_THEME[cfg.theme] || "auto"); saveCfg(); };
 
+// Tells the server the UI is still open; it quits on its own once this
+// stops arriving (browser closed or crashed), see watchBrowser in main.go.
+const heartbeat = setInterval(() => { api("/api/ping", {}).catch(() => {}); }, 20000);
+
 $("quitBtn").onclick = async () => {
+  clearInterval(heartbeat);
   try { await api("/api/quit", {}); } catch {}
   document.body.innerHTML = "";
   document.body.append(el("div", "empty", t("quitDone")));

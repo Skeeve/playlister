@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Track is a single audio file of an album.
@@ -52,9 +53,10 @@ type library struct {
 }
 
 type server struct {
-	lib     library
-	sem     chan struct{} // limits concurrent album loads
-	cfgPath string
+	lib      library
+	sem      chan struct{} // limits concurrent album loads
+	cfgPath  string
+	lastPing atomic.Int64 // UnixNano of the last browser heartbeat (see /api/ping)
 }
 
 // listDirs returns the visible subfolders of dir in natural order.

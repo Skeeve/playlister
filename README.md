@@ -73,7 +73,9 @@ system's default browser is used.
    be saved.
 4. Pick the target folder and file name, then **Save playlist**.
 
-**Quit** in the header (or Ctrl+C in the terminal) stops the program.
+**Quit** in the header (or Ctrl+C in the terminal) stops the program. If the
+browser is closed or crashes instead, Playlister notices the missing
+heartbeat and quits on its own a few minutes later.
 
 Expected layout – albums may contain subfolders such as `CD1`/`CD2`:
 

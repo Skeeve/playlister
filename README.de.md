@@ -77,6 +77,9 @@ ohne Angabe ist es der Standardbrowser des Systems.
 4. Zielordner und Dateinamen wählen, dann **Playlist speichern**.
 
 **Beenden** in der Kopfzeile oder Strg+C im Terminal beendet das Programm.
+Wird der Browser stattdessen geschlossen oder stürzt er ab, bemerkt
+Playlister den fehlenden Lebenszeichen-Ping und beendet sich einige Minuten
+später von selbst.
 
 Erwarteter Aufbau – Alben dürfen Unterordner wie `CD1`/`CD2` enthalten:
 
