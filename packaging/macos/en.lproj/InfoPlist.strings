@@ -1,0 +1,5 @@
+"NSNetworkVolumesUsageDescription" = "Playlister reads your music collection and saves playlists on network volumes.";
+"NSRemovableVolumesUsageDescription" = "Playlister reads your music collection and saves playlists on external drives.";
+"NSDocumentsFolderUsageDescription" = "Playlister reads your music collection and saves playlists in your Documents folder.";
+"NSDesktopFolderUsageDescription" = "Playlister reads your music collection and saves playlists on your Desktop.";
+"NSDownloadsFolderUsageDescription" = "Playlister reads your music collection and saves playlists in your Downloads folder.";

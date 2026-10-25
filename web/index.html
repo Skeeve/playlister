@@ -215,6 +215,13 @@ dialog::backdrop { background: rgba(17,19,42,.45); }
 #dirList .row svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; }
 .dlg .savebar { justify-content: flex-end; }
 
+header button.icon { padding: 5px 7px; display: inline-flex; }
+header button.icon svg { width: 18px; height: 18px; }
+.settings { display: flex; flex-direction: column; gap: 8px; padding: 18px 18px 0; }
+.settings h2 { font-size: 16px; margin: 0 0 6px; }
+.settings label { font-size: 13px; color: var(--muted); }
+.settings .hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.settings .savebar { margin: 10px -18px 0; justify-content: flex-end; }
 header select {
   background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); color: #fff; padding: 5px 8px;
 }
@@ -242,6 +249,7 @@ footer .version:hover { color: var(--accent); }
     <option value="de">Deutsch</option>
     <option value="en">English</option>
   </select>
+  <button id="settingsBtn" class="quiet icon" data-i18n-title="settings"></button>
   <button id="themeBtn" class="quiet"></button>
   <button id="quitBtn" class="quiet" data-i18n="quit" data-i18n-title="quitTitle"></button>
 </header>
@@ -279,6 +287,20 @@ footer .version:hover { color: var(--accent); }
 </main>
 
 <footer><span id="status"></span><a class="version" id="version" href="https://github.com/Skeeve/playlister" target="_blank" rel="noopener"></a></footer>
+
+<dialog id="settingsDialog">
+  <form method="dialog" class="settings">
+    <h2 data-i18n="settings"></h2>
+    <label for="browserInput" data-i18n="browserLabel"></label>
+    <input type="text" id="browserInput" list="browserList" spellcheck="false" autocomplete="off">
+    <datalist id="browserList"></datalist>
+    <p class="hint" id="browserHint"></p>
+    <div class="savebar">
+      <button value="cancel" data-i18n="cancel"></button>
+      <button value="save" class="primary" data-i18n="saveSettings"></button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="dirDialog">
   <div class="dlg">
@@ -342,6 +364,11 @@ const I18N = {
     overwrite: "{0}\nexistiert bereits. Überschreiben?", notSaved: "Nicht gespeichert.",
     quitDone: "Playlister ist beendet. Du kannst dieses Fenster schließen.",
     hintFolder: "Ordnername von {0}", hintSort: "Sortiername von {0}",
+    settings: "Einstellungen", browserLabel: "Browser beim Start", saveSettings: "Speichern",
+    "browserHint.darwin": "Name des Programms wie im Ordner „Programme“, z. B. Firefox oder Google Chrome. Leer lassen für den Standardbrowser. Gilt ab dem nächsten Start.",
+    "browserHint.windows": "Programmname oder Pfad, z. B. firefox oder msedge. Leer lassen für den Standardbrowser. Gilt ab dem nächsten Start.",
+    "browserHint.linux": "Befehl, z. B. firefox oder chromium. Leer lassen für den Standardbrowser. Gilt ab dem nächsten Start.",
+    browserSaved: "Browser „{0}“ wird ab dem nächsten Start verwendet.", browserDefault: "Ab dem nächsten Start wird der Standardbrowser verwendet.",
     "err.badRequest": "Ungültige Anfrage.", "err.noRoot": "Kein Musikordner angegeben.",
     "err.rootUnreadable": "Ordner kann nicht gelesen werden: {0}",
     "err.stale": "Die Sammlung wurde inzwischen neu eingelesen.",
@@ -395,6 +422,11 @@ const I18N = {
     overwrite: "{0}\nalready exists. Overwrite?", notSaved: "Not saved.",
     quitDone: "Playlister has quit. You can close this window.",
     hintFolder: "Folder name of {0}", hintSort: "Sort name of {0}",
+    settings: "Settings", browserLabel: "Browser to open on start", saveSettings: "Save",
+    "browserHint.darwin": "Application name as shown in the Applications folder, e.g. Firefox or Google Chrome. Leave empty for the default browser. Takes effect on the next start.",
+    "browserHint.windows": "Program name or path, e.g. firefox or msedge. Leave empty for the default browser. Takes effect on the next start.",
+    "browserHint.linux": "Command, e.g. firefox or chromium. Leave empty for the default browser. Takes effect on the next start.",
+    browserSaved: "Browser “{0}” will be used from the next start.", browserDefault: "The default browser will be used from the next start.",
     "err.badRequest": "Invalid request.", "err.noRoot": "No music folder given.",
     "err.rootUnreadable": "Cannot read folder: {0}",
     "err.stale": "The library has been rescanned in the meantime.",
@@ -459,6 +491,7 @@ const ICON = {
   refresh: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   auto: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
   light: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></g></svg>',
+  gear: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.6 1.8h2.8l.4 2.3 1.6.9 2.2-.8 1.4 2.4-1.8 1.5v1.8l1.8 1.5-1.4 2.4-2.2-.8-1.6.9-.4 2.3H8.6l-.4-2.3-1.6-.9-2.2.8L3 13.3l1.8-1.5V10L3 8.5l1.4-2.4 2.2.8 1.6-.9z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="10" cy="9.9" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
   dark: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="currentColor"/></svg>',
 };
 
@@ -467,7 +500,7 @@ const NEXT_THEME = { auto: "light", light: "dark", dark: "auto" };
 
 // ---------------------------------------------------------------- State
 let cfg = {
-  root: "", targetDir: "", extinf: true, theme: "auto", lang: "",
+  root: "", targetDir: "", extinf: true, theme: "auto", lang: "", browser: "",
   sort: [{ key: "artistSort", desc: false }, { key: "year", desc: false }, { key: "none", desc: false }],
 };
 let lib = null;                 // { gen, root, artists, albums }
@@ -480,6 +513,12 @@ const loadQueue = [];
 let activeLoads = 0;
 let filter = "";
 let fileNameAuto = true;        // file name follows the selection until the user types
+let platform = "darwin";        // reported by the server, for the browser hint
+const BROWSERS = {
+  darwin: ["Safari", "Firefox", "Google Chrome", "Brave Browser", "Microsoft Edge", "Vivaldi", "Arc", "Chromium"],
+  windows: ["msedge", "firefox", "chrome", "brave", "vivaldi"],
+  linux: ["firefox", "chromium", "google-chrome", "brave-browser", "vivaldi"],
+};
 
 // ---------------------------------------------------------------- API
 async function api(path, body) {
@@ -1005,6 +1044,22 @@ $("clearSel").onclick = () => {
 };
 
 $("langSel").onchange = () => { cfg.lang = $("langSel").value; saveCfg(); applyLang(cfg.lang); };
+$("settingsBtn").innerHTML = ICON.gear;
+$("settingsBtn").onclick = () => {
+  const list = $("browserList");
+  list.textContent = "";
+  for (const b of BROWSERS[platform] || BROWSERS.linux) { const o = el("option"); o.value = b; list.append(o); }
+  $("browserHint").textContent = t("browserHint." + (BROWSERS[platform] ? platform : "linux"));
+  $("browserInput").value = cfg.browser || "";
+  $("settingsDialog").returnValue = "";
+  $("settingsDialog").showModal();
+};
+$("settingsDialog").addEventListener("close", () => {
+  if ($("settingsDialog").returnValue !== "save") return;
+  cfg.browser = $("browserInput").value.trim();
+  saveCfg();
+  setStatus(cfg.browser ? t("browserSaved", cfg.browser) : t("browserDefault"));
+});
 $("themeBtn").onclick = () => { applyTheme(NEXT_THEME[cfg.theme] || "auto"); saveCfg(); };
 
 $("quitBtn").onclick = async () => {
@@ -1025,7 +1080,10 @@ $("quitBtn").onclick = async () => {
   $("targetDir").value = cfg.targetDir || "";
   $("fileName").value = "Playlist.m3u";
   $("extinf").checked = cfg.extinf !== false;
-  api("/api/info").then(i => { $("version").textContent = "Playlister " + i.version; }).catch(() => {});
+  api("/api/info").then(i => {
+    $("version").textContent = "Playlister " + i.version;
+    platform = i.os || platform;
+  }).catch(() => {});
   if (cfg.root) scan();
 })();
 

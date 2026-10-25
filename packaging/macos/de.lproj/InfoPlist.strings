@@ -1,0 +1,5 @@
+"NSNetworkVolumesUsageDescription" = "Playlister liest deine Musiksammlung und speichert Playlists auf Netzwerkvolumes.";
+"NSRemovableVolumesUsageDescription" = "Playlister liest deine Musiksammlung und speichert Playlists auf externen Laufwerken.";
+"NSDocumentsFolderUsageDescription" = "Playlister liest deine Musiksammlung und speichert Playlists in deinem Dokumente-Ordner.";
+"NSDesktopFolderUsageDescription" = "Playlister liest deine Musiksammlung und speichert Playlists auf deinem Schreibtisch.";
+"NSDownloadsFolderUsageDescription" = "Playlister liest deine Musiksammlung und speichert Playlists in deinem Downloads-Ordner.";

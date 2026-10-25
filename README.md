@@ -38,22 +38,34 @@ Get the binary for your system from the
 
 | System                    | File                              |
 |---------------------------|-----------------------------------|
-| macOS (Apple Silicon)     | `playlister-macos-arm64.tar.gz`   |
-| macOS (Intel)             | `playlister-macos-amd64.tar.gz`   |
+| macOS (Apple Silicon)     | `playlister-macos-arm64-app.zip` (app) or `playlister-macos-arm64.tar.gz` (command line) |
+| macOS (Intel)             | `playlister-macos-amd64-app.zip` (app) or `playlister-macos-amd64.tar.gz` (command line) |
 | Linux (x86_64 / ARM64)    | `playlister-linux-amd64.tar.gz` / `playlister-linux-arm64.tar.gz` |
 | Windows                   | `playlister-windows-amd64.zip`    |
 
-**macOS:** the binary is not signed by Apple. After unpacking, remove the
-quarantine flag once, otherwise Gatekeeper refuses to start it:
+**macOS:** use `Playlister.app` from the `-app.zip` and move it to your
+Applications folder. It is not signed by Apple, so remove the quarantine flag
+once, otherwise Gatekeeper refuses to start it:
 
 ```sh
-xattr -d com.apple.quarantine playlister-macos-arm64
+xattr -dr com.apple.quarantine /Applications/Playlister.app
 ```
+
+Why the app? macOS asks for permission before a program may read network
+volumes, external drives or your Documents, Desktop and Downloads folders – and
+it asks on behalf of the program that *started* Playlister. Launched from the
+terminal of an editor such as VS Code, the plain binary fails with
+"operation not permitted" unless that editor has the permission. The app is
+its own program for macOS: it asks once for itself and works no matter how
+you start it.
 
 ## Usage
 
-Start the program (double-click or from a terminal). It opens
-`http://127.0.0.1:8765/` in your default browser.
+Start the program – on macOS double-click `Playlister.app` or run
+`open /Applications/Playlister.app`. It opens `http://127.0.0.1:8765/` in your
+browser. If Playlister is already running, starting it again just opens the
+browser. The browser can be chosen in the settings (gear icon); by default the
+system's default browser is used.
 
 1. Enter or browse to your music folder and click **Scan**.
 2. Tick artists and/or albums. Ticking an artist selects all of its albums.
@@ -92,7 +104,11 @@ Jean-Michel Jarre/Oxygène/01 Oxygène Part I.mp3
 |--------|---------|---------|
 | `-listen` | `127.0.0.1:8765` | Address and port of the web server. If the default port is taken, a free one is used. |
 | `-no-browser` | off | Don't open the browser automatically. |
+| `-browser` | from settings | Browser to open: on macOS the application name (`Firefox`, `Google Chrome`), on Windows the program name (`firefox`, `msedge`), on Linux the command (`firefox`). |
 | `-version` | | Print the version and exit. |
+
+With the app, pass options like this:
+`open /Applications/Playlister.app --args -browser Firefox`
 
 ### Running on a server
 
@@ -120,7 +136,18 @@ docker build --build-arg VERSION=v1.0.0 --output dist .   # with version number
 ```
 
 This runs `go vet` and the tests and writes binaries for all platforms to
-`dist/`. With a local Go installation (1.22+), `go build .` works as usual.
+`dist/`, plus the macOS apps in `dist/app-arm64/` and `dist/app-amd64/`.
+macOS should sign a self-built app once (ad hoc, no Apple account needed;
+`codesign` is part of macOS):
+
+```sh
+codesign --force --sign - --identifier io.github.skeeve.playlister dist/app-arm64/Playlister.app
+```
+
+Every new build is a new program for macOS, so it asks for the folder
+permissions again on first start.
+
+With a local Go installation (1.22+), `go build .` works as usual.
 
 Releases are built by GitHub Actions: pushing a tag `v*` creates a release with
 all binaries attached.
