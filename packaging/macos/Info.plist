@@ -24,10 +24,11 @@
 	<string>@VERSION@</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>11.0</string>
-	<!-- show a Dock icon: its menu offers Quit even though the interface
-	     runs in the browser -->
+	<!-- no Dock icon or menu bar: the interface runs in the browser. A
+	     foreground app without AppKit never signals the Dock that it has
+	     finished launching, so its icon would bounce forever. -->
 	<key>LSUIElement</key>
-	<false/>
+	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Stephan (Skeeve), MIT License</string>
 	<!-- texts for the macOS privacy prompts (translated in *.lproj) -->
