@@ -1,3 +1,13 @@
+<!--
+  Source for Resources/AppIcon.icns. Regenerating it:
+  `qlmanage -t -s 1024 -o . AppIcon.svg` renders this correctly EXCEPT it
+  fills everything outside the drawn shapes with opaque white instead of
+  leaving it transparent. Fix: render a second, throwaway SVG containing
+  only `<rect width="1024" height="1024" rx="185" fill="#000"/>` the same
+  way, `-negate` that render, and use it as an alpha mask
+  (`magick icon.png mask.png -alpha off -compose CopyOpacity -composite`)
+  before building the .iconset and running `iconutil -c icns`.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
 <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stop-color="#8a5cf0"/><stop offset="100%" stop-color="#2a1f7a"/>
