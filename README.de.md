@@ -77,6 +77,8 @@ ohne Angabe ist es der Standardbrowser des Systems.
 4. Zielordner und Dateinamen wählen, dann **Playlist speichern**.
 
 **Beenden** in der Kopfzeile oder Strg+C im Terminal beendet das Programm.
+Unter macOS zeigt die App außerdem ein Dock-Icon; „Beenden“ im Dock-Menü
+funktioniert genauso.
 
 Erwarteter Aufbau – Alben dürfen Unterordner wie `CD1`/`CD2` enthalten:
 

@@ -73,7 +73,9 @@ system's default browser is used.
    be saved.
 4. Pick the target folder and file name, then **Save playlist**.
 
-**Quit** in the header (or Ctrl+C in the terminal) stops the program.
+**Quit** in the header (or Ctrl+C in the terminal) stops the program. On
+macOS, the app also shows a Dock icon; Quit from its Dock menu works the same
+way.
 
 Expected layout – albums may contain subfolders such as `CD1`/`CD2`:
 

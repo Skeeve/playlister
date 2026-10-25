@@ -32,6 +32,7 @@ RUN set -e; \
       cp /out/playlister-macos-$arch $app/MacOS/playlister; \
       sed "s/@VERSION@/$plv/g" packaging/macos/Info.plist > $app/Info.plist; \
       cp -R packaging/macos/*.lproj $app/Resources/; \
+      cp packaging/macos/Resources/AppIcon.icns $app/Resources/; \
       printf 'APPL????' > $app/PkgInfo; \
     done
 
