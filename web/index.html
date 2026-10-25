@@ -22,6 +22,7 @@
   --amber:#b86e00; --amber-bg:#fff1d6; --ok:#13806f; --error:#c0392b;
   --swatch-l:52%; --swatch-s:58%;
   --shadow:0 1px 2px rgba(27,33,64,.06), 0 6px 20px rgba(27,33,64,.06);
+  --gradient: 100deg, #8a5cf0 0%, #5b3fd1 55%, #2a1f7a 100%;
   color-scheme: light;
 }
 /* Dark: follows the system unless "light" is chosen, or chosen manually */
@@ -43,6 +44,7 @@
     --amber:#f5bb5c; --amber-bg:#3a2e14; --ok:#4fd1b9; --error:#ff8a7a;
     --swatch-l:66%; --swatch-s:62%;
     --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+	--gradient: 100deg, #2a1f7a 0%, #5b3fd1 55%, #8a5cf0 100%;
     color-scheme: dark;
 }
 :root[data-theme="light"] { color-scheme: light; }
@@ -58,7 +60,7 @@ body {
 /* Header */
 header {
   display: flex; gap: 10px; align-items: center; padding: 12px 16px;
-  background: linear-gradient(100deg, #2a1f7a 0%, #5b3fd1 55%, #8a5cf0 100%);
+  background: linear-gradient(var(--gradient));
   color: #fff;
 }
 .brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
