@@ -1,0 +1,48 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with Docker (vet, test, cross-compile)
+        run: docker build --build-arg VERSION="${GITHUB_REF_NAME}" --output dist .
+
+      - name: Package
+        run: |
+          cd dist
+          for f in playlister-*; do
+            case "$f" in
+              *.exe) zip -q "${f%.exe}.zip" "$f" ;;
+              *)     chmod +x "$f"; tar -czf "$f.tar.gz" "$f" ;;
+            esac
+          done
+          sha256sum *.zip *.tar.gz > SHA256SUMS.txt
+          ls -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playlister-${{ github.ref_name }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/SHA256SUMS.txt
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Playlister $GITHUB_REF_NAME" --generate-notes \
+            dist/*.zip dist/*.tar.gz dist/SHA256SUMS.txt

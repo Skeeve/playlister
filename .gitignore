@@ -1,0 +1,8 @@
+# build output
+dist/
+playlister
+playlister.exe
+
+# macOS
+.DS_Store
+._*

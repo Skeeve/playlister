@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playlister</title>
+<script>
+  // apply theme and language before the first paint
+  try {
+    const t = localStorage.getItem("playlister-theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    const l = localStorage.getItem("playlister-lang");
+    if (l) document.documentElement.lang = l;
+  } catch {}
+</script>
+<style>
+/* Palette: ink & violet, amber for years; every artist gets a colour of its own */
+:root {
+  --bg:#eef0f7; --panel:#ffffff; --panel-2:#f6f7fc; --text:#1b2140; --muted:#5f6688;
+  --line:#dde0ee; --hover:#f0eefc; --sel:#ebe6ff;
+  --accent:#5b3fd1; --accent-2:#7a5cf0; --accent-text:#ffffff;
+  --amber:#b86e00; --amber-bg:#fff1d6; --ok:#13806f; --error:#c0392b;
+  --swatch-l:52%; --swatch-s:58%;
+  --shadow:0 1px 2px rgba(27,33,64,.06), 0 6px 20px rgba(27,33,64,.06);
+  color-scheme: light;
+}
+/* Dark: follows the system unless "light" is chosen, or chosen manually */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#11132a; --panel:#1a1d3a; --panel-2:#20244a; --text:#e9eaf6; --muted:#a3a7c8;
+    --line:#2e3360; --hover:#252a55; --sel:#2d2868;
+    --accent:#9b86ff; --accent-2:#b8a8ff; --accent-text:#14102e;
+    --amber:#f5bb5c; --amber-bg:#3a2e14; --ok:#4fd1b9; --error:#ff8a7a;
+    --swatch-l:66%; --swatch-s:62%;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+    --bg:#11132a; --panel:#1a1d3a; --panel-2:#20244a; --text:#e9eaf6; --muted:#a3a7c8;
+    --line:#2e3360; --hover:#252a55; --sel:#2d2868;
+    --accent:#9b86ff; --accent-2:#b8a8ff; --accent-text:#14102e;
+    --amber:#f5bb5c; --amber-bg:#3a2e14; --ok:#4fd1b9; --error:#ff8a7a;
+    --swatch-l:66%; --swatch-s:62%;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font: 14px/1.45 "Avenir Next", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg); color: var(--text); display: flex; flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+header {
+  display: flex; gap: 10px; align-items: center; padding: 12px 16px;
+  background: linear-gradient(100deg, #2a1f7a 0%, #5b3fd1 55%, #8a5cf0 100%);
+  color: #fff;
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
+.brand svg { width: 30px; height: 30px; flex-shrink: 0; }
+h1 { font-size: 19px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+header input[type=text] {
+  background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); color: #fff;
+}
+header input[type=text]::placeholder { color: rgba(255,255,255,.65); }
+header button { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); color: #fff; }
+header button:hover { background: rgba(255,255,255,.26); }
+header button.light { background: #fff; color: #3a26a8; border-color: #fff; font-weight: 600; }
+header button.light:hover { background: #ece8ff; }
+header button.quiet { background: none; border-color: transparent; color: rgba(255,255,255,.8); }
+header button.quiet:hover { background: rgba(255,255,255,.14); color: #fff; }
+#themeBtn { display: inline-flex; align-items: center; gap: 6px; }
+#themeBtn svg { width: 16px; height: 16px; }
+
+/* Rescan button – appears when hovering a row */
+.rescan {
+  border: 0; background: none; padding: 0; width: 24px; height: 24px; border-radius: 6px;
+  color: var(--muted); display: grid; place-items: center; flex-shrink: 0; opacity: 0;
+}
+.rescan svg { width: 14px; height: 14px; }
+.row:hover .rescan, .rescan:focus-visible, .rescan.busy { opacity: 1; }
+.rescan:hover { background: var(--line); color: var(--accent); }
+.rescan.busy { color: var(--accent); }
+.rescan.busy svg { animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (hover: none) { .rescan { opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .rescan.busy svg { animation: none; } }
+
+/* Basics */
+input[type=text], select, button {
+  font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); color: var(--text);
+}
+input[type=text]:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+button { cursor: pointer; white-space: nowrap; transition: background .12s, border-color .12s; }
+button:hover { background: var(--hover); }
+button:disabled { opacity: .45; cursor: default; }
+input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; flex-shrink: 0; }
+.grow { flex: 1; min-width: 0; }
+
+main {
+  flex: 1; min-height: 0; display: grid; gap: 16px; padding: 16px;
+  grid-template-columns: minmax(320px, 11fr) minmax(340px, 9fr);
+}
+@media (max-width: 820px) { main { grid-template-columns: 1fr; grid-auto-rows: minmax(320px, 1fr); } }
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden; box-shadow: var(--shadow);
+}
+.panel h2 { font-size: 15px; margin: 0; font-weight: 650; }
+.panel-head { display: flex; gap: 10px; align-items: center; padding: 12px 14px 10px; }
+.panel-head .count { color: var(--muted); font-size: 13px; }
+.bar { display: flex; gap: 8px; align-items: center; padding: 0 14px 12px; }
+.scroll { flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--line); }
+.empty { color: var(--muted); padding: 28px 20px; text-align: center; line-height: 1.6; }
+
+/* Artist colour */
+.swatch {
+  width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+  background: hsl(var(--h) var(--swatch-s) var(--swatch-l));
+}
+
+/* Tree */
+.row { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; white-space: nowrap; }
+.row:hover { background: var(--hover); }
+.row label { display: flex; gap: 8px; align-items: center; flex: 1; min-width: 0; cursor: pointer; padding: 3px 0; }
+.row .name { overflow: hidden; text-overflow: ellipsis; }
+.row.head .name { font-weight: 600; }
+.artist.open { background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.artist.open .row.album:not(.selected):hover { background: var(--hover); }
+.row.album { padding-left: 46px; }
+.row.album.selected { background: var(--sel); }
+.twisty {
+  border: 0; background: none; padding: 0; width: 22px; height: 22px; border-radius: 6px;
+  color: var(--muted); display: grid; place-items: center;
+}
+.twisty:hover { background: var(--line); color: var(--text); }
+.twisty svg { width: 12px; height: 12px; transition: transform .15s; }
+.artist.open .twisty svg { transform: rotate(90deg); }
+.meta { color: var(--muted); font-size: 12.5px; flex-shrink: 0; margin-left: auto; padding-left: 8px; }
+.year {
+  display: inline-block; min-width: 3.4em; text-align: center; padding: 0 6px; border-radius: 999px;
+  background: var(--amber-bg); color: var(--amber); font-size: 12px; font-weight: 650; flex-shrink: 0;
+}
+.year.unknown { background: none; color: var(--muted); font-weight: 400; }
+.loading { color: var(--accent); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+.loading::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .loading::before { animation: none; } .twisty svg { transition: none; } }
+
+/* Sorting */
+.sortgrid { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 0 14px 14px; }
+.level {
+  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--sel); color: var(--accent); font-size: 12px; font-weight: 700;
+}
+
+/* Preview */
+ol#preview { list-style: none; margin: 0; padding: 6px 0; counter-reset: alb; }
+ol#preview li {
+  counter-increment: alb; display: flex; align-items: center; gap: 10px;
+  padding: 7px 14px; border-bottom: 1px solid var(--line);
+}
+ol#preview li:last-child { border-bottom: 0; }
+ol#preview li::before { content: counter(alb); color: var(--muted); font-size: 12px; min-width: 1.6em; text-align: right; }
+ol#preview li .bar-sw { width: 4px; align-self: stretch; border-radius: 2px; background: hsl(var(--h) var(--swatch-s) var(--swatch-l)); }
+ol#preview .txt { min-width: 0; flex: 1; }
+ol#preview .t1 { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ol#preview .t2 { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ol#preview li.empty { display: block; border: 0; counter-increment: none; }
+ol#preview li.empty::before { content: none; }
+ol#preview li.pending .t1 { color: var(--muted); font-weight: 500; }
+
+/* Saving */
+.target {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; align-items: center;
+  padding: 14px; border-top: 1px solid var(--line); background: var(--panel-2);
+}
+.target label { color: var(--muted); font-size: 13px; }
+.savebar { display: flex; gap: 10px; align-items: center; padding: 12px 14px; background: var(--panel-2); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.savebar label { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; cursor: pointer; }
+button.primary {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-text);
+  font-weight: 650; padding: 8px 18px;
+}
+button.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+
+/* Status line */
+footer {
+  display: flex; gap: 8px; align-items: center; padding: 8px 16px;
+  border-top: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 13px;
+}
+footer::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+footer.error { color: var(--error); }
+footer.error::before { background: var(--error); }
+
+/* Folder picker */
+dialog {
+  border: 1px solid var(--line); border-radius: 14px; padding: 0; background: var(--panel); color: var(--text);
+  width: min(640px, 92vw); box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+dialog::backdrop { background: rgba(17,19,42,.45); }
+.dlg { display: flex; flex-direction: column; height: min(540px, 80vh); }
+.dlg .bar { padding: 14px 14px 10px; }
+#dirPlaces { display: flex; gap: 6px; padding: 0 14px 12px; flex-wrap: wrap; }
+#dirPlaces button { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--panel-2); }
+#dirList .row { cursor: pointer; padding: 6px 14px; gap: 10px; }
+#dirList .row svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; }
+.dlg .savebar { justify-content: flex-end; }
+
+header select {
+  background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.25); color: #fff; padding: 5px 8px;
+}
+header select option { color: #1b2140; background: #fff; }
+footer .version { margin-left: auto; color: var(--muted); text-decoration: none; }
+footer .version:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="15" fill="#14102e"/>
+      <circle cx="16" cy="16" r="11.5" fill="none" stroke="#3b3470" stroke-width=".8"/>
+      <circle cx="16" cy="16" r="9" fill="none" stroke="#3b3470" stroke-width=".8"/>
+      <circle cx="16" cy="16" r="6" fill="#f5bb5c"/>
+      <circle cx="16" cy="16" r="1.6" fill="#14102e"/>
+    </svg>
+    <h1>Playlister</h1>
+  </div>
+  <input type="text" id="root" class="grow" data-i18n-ph="rootPh" spellcheck="false">
+  <button id="rootBrowse" data-i18n="browse"></button>
+  <button id="scanBtn" class="light" data-i18n="scan"></button>
+  <select id="langSel" data-i18n-title="language" aria-label="Language">
+    <option value="de">Deutsch</option>
+    <option value="en">English</option>
+  </select>
+  <button id="themeBtn" class="quiet"></button>
+  <button id="quitBtn" class="quiet" data-i18n="quit" data-i18n-title="quitTitle"></button>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head"><h2 data-i18n="library"></h2><span class="count" id="libCount"></span></div>
+    <div class="bar">
+      <input type="text" id="filter" class="grow" data-i18n-ph="filterPh" spellcheck="false">
+      <button id="clearSel" data-i18n="clearSel"></button>
+    </div>
+    <div id="tree" class="scroll"><div class="empty" data-i18n="treeEmpty"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2 data-i18n="order"></h2></div>
+    <div class="sortgrid" id="sortgrid"></div>
+    <div class="panel-head"><h2 data-i18n="playlist"></h2><span class="count" id="plCount"></span></div>
+    <div class="scroll"><ol id="preview"></ol></div>
+    <div class="target">
+      <label for="targetDir" data-i18n="saveIn"></label>
+      <input type="text" id="targetDir" data-i18n-ph="targetPh" spellcheck="false">
+      <button id="targetBrowse" data-i18n-title="chooseFolder">…</button>
+      <label for="fileName" data-i18n="fileName"></label>
+      <input type="text" id="fileName" list="nameSuggestions" spellcheck="false" data-i18n-title="fileNameTitle">
+      <button id="nameReset" data-i18n-title="nameReset">↺</button>
+      <datalist id="nameSuggestions"></datalist>
+    </div>
+    <div class="savebar">
+      <label><input type="checkbox" id="extinf"> <span data-i18n="extinf"></span></label>
+      <span class="grow"></span>
+      <button id="saveBtn" class="primary" data-i18n="save" disabled></button>
+    </div>
+  </section>
+</main>
+
+<footer><span id="status"></span><a class="version" id="version" href="https://github.com/Skeeve/playlister" target="_blank" rel="noopener"></a></footer>
+
+<dialog id="dirDialog">
+  <div class="dlg">
+    <div class="bar">
+      <button id="dirUp" data-i18n-title="dirUp">↑</button>
+      <input type="text" id="dirPath" class="grow" spellcheck="false">
+      <button id="dirGo" data-i18n="open"></button>
+    </div>
+    <div id="dirPlaces"></div>
+    <div id="dirList" class="scroll"></div>
+    <div class="savebar">
+      <button id="dirCancel" data-i18n="cancel"></button>
+      <button id="dirOk" class="primary" data-i18n="chooseThis"></button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- Translations
+// To add a language, copy the "en" block, translate the values and add an
+// <option> to #langSel. Arrays are [singular, plural]; {0}, {1} are arguments.
+const I18N = {
+  de: {
+    language: "Sprache",
+    rootPh: "Musikordner, z. B. /Volumes/Multimedia/MP3",
+    browse: "Durchsuchen…", scan: "Einlesen", quit: "Beenden", quitTitle: "Programm beenden",
+    library: "Sammlung", filterPh: "Künstler oder Album suchen", clearSel: "Auswahl aufheben",
+    treeEmpty: "Wähle oben deinen Musikordner und klicke auf „Einlesen“.",
+    order: "Reihenfolge", playlist: "Playlist",
+    saveIn: "Speichern in", targetPh: "Musikordner", chooseFolder: "Ordner wählen",
+    fileName: "Dateiname",
+    fileNameTitle: "Wird aus den gewählten Künstlern vorgeschlagen. Leeren, um wieder den Vorschlag zu bekommen.",
+    nameReset: "Wieder den Vorschlag verwenden",
+    extinf: "Titel, Album und Jahr mitschreiben", save: "Playlist speichern",
+    dirUp: "Übergeordneter Ordner", open: "Öffnen", cancel: "Abbrechen", chooseThis: "Diesen Ordner wählen",
+    home: "Benutzerordner", noSubdirs: "Keine Unterordner.",
+    "sort.none": "—", "sort.artistDir": "Künstler (Ordnername)", "sort.artistTag": "Künstler (Name aus Tags)",
+    "sort.artistSort": "Künstler (Sortiername aus Tags)", "sort.year": "Erscheinungsjahr",
+    "sort.album": "Album (alphabetisch)", asc: "aufsteigend ↑", desc: "absteigend ↓",
+    "theme.auto": "Automatisch", "theme.light": "Hell", "theme.dark": "Dunkel",
+    themeTitle: "Erscheinungsbild: {0} (klicken für {1})",
+    artists: ["{0} Künstler", "{0} Künstler"], albums: ["{0} Album", "{0} Alben"], tracks: ["{0} Titel", "{0} Titel"],
+    sortedAs: "sortiert als „{0}“, {1}", noYear: "o. J.",
+    readingTags: "Tags werden gelesen", loadingShort: "lädt",
+    showAlbums: "Alben anzeigen", hideAlbums: "Alben ausblenden",
+    nothingMatches: "Nichts passt zu „{0}“.",
+    noArtistDirs: "In diesem Ordner gibt es keine Unterordner im Aufbau Künstler/Album.",
+    rescanArtist: "„{0}“ neu einlesen (neue Alben, geänderte Tags)", rescanAlbum: "Tags von „{0}“ neu lesen",
+    previewEmpty: "Hake links Künstler oder Alben an. Sie erscheinen hier in der Reihenfolge, in der sie in der Playlist stehen werden.",
+    statusStart: "Bitte Musikordner wählen.", ready: "Bereit.", readyToSave: "Bereit zum Speichern.",
+    statusReading: ["Tags werden gelesen, noch {0} Album …", "Tags werden gelesen, noch {0} Alben …"],
+    rescannedAlbum: "„{0}“ neu gelesen: {1}, {2}.", yearIs: "Jahr {0}", noYearInTags: "kein Jahr in den Tags",
+    rescannedArtist: "„{0}“ neu eingelesen: {1}.",
+    newAlbums: ["{0} neues Album", "{0} neue Alben"],
+    goneAlbums: ["{0} Album nicht mehr vorhanden", "{0} Alben nicht mehr vorhanden"],
+    noNewAlbums: "keine neuen Alben",
+    scanning: "Lese Ordner …", needRoot: "Bitte Musikordner angeben.",
+    saved: "Playlist gespeichert: {0} ({1})",
+    outside: " – {0} Titel auf anderem Laufwerk, mit absolutem Pfad eingetragen",
+    overwrite: "{0}\nexistiert bereits. Überschreiben?", notSaved: "Nicht gespeichert.",
+    quitDone: "Playlister ist beendet. Du kannst dieses Fenster schließen.",
+    hintFolder: "Ordnername von {0}", hintSort: "Sortiername von {0}",
+    "err.badRequest": "Ungültige Anfrage.", "err.noRoot": "Kein Musikordner angegeben.",
+    "err.rootUnreadable": "Ordner kann nicht gelesen werden: {0}",
+    "err.stale": "Die Sammlung wurde inzwischen neu eingelesen.",
+    "err.albumNotFound": "Album nicht gefunden.",
+    "err.albumGone": "Der Albumordner existiert nicht mehr. Lies den Künstler neu ein.",
+    "err.artistNotFound": "Künstler nicht gefunden.",
+    "err.artistGone": "Der Künstlerordner ist nicht mehr lesbar. Bitte die ganze Sammlung neu einlesen.",
+    "err.noAlbums": "Keine Alben ausgewählt.", "err.targetMissing": "Zielordner existiert nicht: {0}",
+    "err.badFileName": "Ungültiger Dateiname.", "err.writeFailed": "Playlist konnte nicht geschrieben werden: {0}",
+    "err.dirUnreadable": "Ordner kann nicht gelesen werden: {0}", "err.badConfig": "Ungültige Einstellungen.",
+    "err.configFailed": "Einstellungen konnten nicht gespeichert werden: {0}",
+    "err.network": "Keine Verbindung zum Playlister. Läuft das Programm noch?",
+  },
+  en: {
+    language: "Language",
+    rootPh: "Music folder, e.g. /Volumes/Music/MP3",
+    browse: "Browse…", scan: "Scan", quit: "Quit", quitTitle: "Quit Playlister",
+    library: "Library", filterPh: "Search artist or album", clearSel: "Clear selection",
+    treeEmpty: "Choose your music folder above and click “Scan”.",
+    order: "Order", playlist: "Playlist",
+    saveIn: "Save to", targetPh: "Music folder", chooseFolder: "Choose folder",
+    fileName: "File name",
+    fileNameTitle: "Suggested from the selected artists. Clear it to get the suggestion back.",
+    nameReset: "Use the suggestion again",
+    extinf: "Include title, album and year", save: "Save playlist",
+    dirUp: "Parent folder", open: "Open", cancel: "Cancel", chooseThis: "Choose this folder",
+    home: "Home", noSubdirs: "No subfolders.",
+    "sort.none": "—", "sort.artistDir": "Artist (folder name)", "sort.artistTag": "Artist (name from tags)",
+    "sort.artistSort": "Artist (sort name from tags)", "sort.year": "Release year",
+    "sort.album": "Album (alphabetical)", asc: "ascending ↑", desc: "descending ↓",
+    "theme.auto": "Auto", "theme.light": "Light", "theme.dark": "Dark",
+    themeTitle: "Appearance: {0} (click for {1})",
+    artists: ["{0} artist", "{0} artists"], albums: ["{0} album", "{0} albums"], tracks: ["{0} track", "{0} tracks"],
+    sortedAs: "sorted as “{0}”, {1}", noYear: "n. d.",
+    readingTags: "Reading tags", loadingShort: "loading",
+    showAlbums: "Show albums", hideAlbums: "Hide albums",
+    nothingMatches: "Nothing matches “{0}”.",
+    noArtistDirs: "This folder has no subfolders in the Artist/Album layout.",
+    rescanArtist: "Rescan “{0}” (new albums, changed tags)", rescanAlbum: "Reread tags of “{0}”",
+    previewEmpty: "Tick artists or albums on the left. They appear here in the order they will have in the playlist.",
+    statusStart: "Please choose a music folder.", ready: "Ready.", readyToSave: "Ready to save.",
+    statusReading: ["Reading tags, {0} album left …", "Reading tags, {0} albums left …"],
+    rescannedAlbum: "Reread “{0}”: {1}, {2}.", yearIs: "year {0}", noYearInTags: "no year in the tags",
+    rescannedArtist: "Rescanned “{0}”: {1}.",
+    newAlbums: ["{0} new album", "{0} new albums"],
+    goneAlbums: ["{0} album no longer present", "{0} albums no longer present"],
+    noNewAlbums: "no new albums",
+    scanning: "Scanning folders …", needRoot: "Please enter a music folder.",
+    saved: "Playlist saved: {0} ({1})",
+    outside: " – {0} tracks on another drive, written with absolute paths",
+    overwrite: "{0}\nalready exists. Overwrite?", notSaved: "Not saved.",
+    quitDone: "Playlister has quit. You can close this window.",
+    hintFolder: "Folder name of {0}", hintSort: "Sort name of {0}",
+    "err.badRequest": "Invalid request.", "err.noRoot": "No music folder given.",
+    "err.rootUnreadable": "Cannot read folder: {0}",
+    "err.stale": "The library has been rescanned in the meantime.",
+    "err.albumNotFound": "Album not found.",
+    "err.albumGone": "The album folder no longer exists. Rescan the artist.",
+    "err.artistNotFound": "Artist not found.",
+    "err.artistGone": "The artist folder can no longer be read. Please rescan the whole library.",
+    "err.noAlbums": "No albums selected.", "err.targetMissing": "Target folder does not exist: {0}",
+    "err.badFileName": "Invalid file name.", "err.writeFailed": "Could not write playlist: {0}",
+    "err.dirUnreadable": "Cannot read folder: {0}", "err.badConfig": "Invalid settings.",
+    "err.configFailed": "Could not save settings: {0}",
+    "err.network": "No connection to Playlister. Is it still running?",
+  },
+};
+
+let lang = "en";
+function detectLang() {
+  for (const l of navigator.languages || [navigator.language || "en"]) {
+    const code = l.slice(0, 2).toLowerCase();
+    if (I18N[code]) return code;
+  }
+  return "en";
+}
+
+// t("albums", 3) → "3 Alben"
+function t(key, ...args) {
+  let v = I18N[lang][key] ?? I18N.en[key] ?? key;
+  if (Array.isArray(v)) v = v[args[0] === 1 ? 0 : 1];
+  return v.replace(/\{(\d+)\}/g, (_, i) => args[i] ?? "");
+}
+
+function applyStatic() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(e => { e.textContent = t(e.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(e => { e.placeholder = t(e.dataset.i18nPh); });
+  document.querySelectorAll("[data-i18n-title]").forEach(e => {
+    e.title = t(e.dataset.i18nTitle);
+    if (!e.textContent.trim() || e.textContent.length < 3) e.setAttribute("aria-label", e.title);
+  });
+}
+
+// ---------------------------------------------------------------- Helpers
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+let coll = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+// stable colour per artist (derived from the folder name)
+function hue(str) {
+  let h = 0;
+  for (const c of str) h = (h * 31 + c.codePointAt(0)) >>> 0;
+  return h % 360;
+}
+
+const ICON = {
+  chevron: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  folder: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 4.5a1 1 0 0 1 1-1h3.6l1.4 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" fill="currentColor" opacity=".85"/></svg>',
+  refresh: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  auto: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
+  light: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></g></svg>',
+  dark: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="currentColor"/></svg>',
+};
+
+const SORT_KEYS = ["none", "artistDir", "artistTag", "artistSort", "year", "album"];
+const NEXT_THEME = { auto: "light", light: "dark", dark: "auto" };
+
+// ---------------------------------------------------------------- State
+let cfg = {
+  root: "", targetDir: "", extinf: true, theme: "auto", lang: "",
+  sort: [{ key: "artistSort", desc: false }, { key: "year", desc: false }, { key: "none", desc: false }],
+};
+let lib = null;                 // { gen, root, artists, albums }
+const selected = new Set();     // album IDs
+const expanded = new Set();     // artist IDs expanded by hand
+const autoOpen = new Set();     // expanded only for the current filter (album name matches)
+const pending = new Set();      // album IDs whose tags are being read
+const refreshing = new Set();   // artist IDs being rescanned
+const loadQueue = [];
+let activeLoads = 0;
+let filter = "";
+let fileNameAuto = true;        // file name follows the selection until the user types
+
+// ---------------------------------------------------------------- API
+async function api(path, body) {
+  const opt = { headers: { "X-Playlister": "1" } };
+  if (body !== undefined) {
+    opt.method = "POST";
+    opt.headers["Content-Type"] = "application/json";
+    opt.body = JSON.stringify(body);
+  }
+  let r;
+  try {
+    r = await fetch(path, opt);
+  } catch {
+    throw new Error(t("err.network"));
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = data.code ? t("err." + data.code, ...(data.args || [])) : (data.error || r.statusText);
+    const e = new Error(msg);
+    e.status = r.status;
+    e.data = data;
+    throw e;
+  }
+  return data;
+}
+
+function setStatus(text, isError = false) {
+  $("status").textContent = text;
+  $("status").parentElement.classList.toggle("error", isError);
+}
+const showError = e => setStatus(e.message || String(e), true);
+
+let cfgTimer;
+function saveCfg() {
+  clearTimeout(cfgTimer);
+  cfgTimer = setTimeout(() => api("/api/config", cfg).catch(() => {}), 300);
+}
+
+// ---------------------------------------------------------------- Language & theme
+function applyLang(l) {
+  lang = I18N[l] ? l : detectLang();
+  $("langSel").value = lang;
+  coll = new Intl.Collator(lang, { numeric: true, sensitivity: "base" });
+  try { localStorage.setItem("playlister-lang", lang); } catch {}
+  applyStatic();
+  applyTheme(cfg.theme);
+  buildSortUI();
+  if (lib) { updateLibCount(); renderTree(); updatePreview(); }
+  else setStatus(t("statusStart"));
+}
+
+function applyTheme(th) {
+  if (!NEXT_THEME[th]) th = "auto";
+  cfg.theme = th;
+  if (th === "auto") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = th;
+  try { localStorage.setItem("playlister-theme", th); } catch {}
+  const b = $("themeBtn");
+  b.innerHTML = ICON[th];
+  b.append(t("theme." + th));
+  b.title = t("themeTitle", t("theme." + th), t("theme." + NEXT_THEME[th]));
+}
+
+// ---------------------------------------------------------------- Names
+const tagName = ar => ar.tagName || ar.dir;
+const sortName = ar => ar.sortName || ar.tagName || ar.dir;
+const artistMatches = ar => !filter || ar.dir.toLowerCase().includes(filter) ||
+  (ar.tagName || "").toLowerCase().includes(filter);
+const safeName = s => s.replace(/[\/\\:*?"<>|]/g, "-").replace(/^\.+/, "").trim();
+
+// albums of an artist matching the filter, in locale-aware order ("Équinoxe" next to "E…")
+function visibleAlbums(ar) {
+  const ids = artistMatches(ar) ? [...ar.albums]
+    : ar.albums.filter(id => lib.albums[id].name.toLowerCase().includes(filter));
+  return ids.sort((a, b) => coll.compare(lib.albums[a].name, lib.albums[b].name));
+}
+
+function yearBadge(y) {
+  return el("span", y ? "year" : "year unknown", y ? String(y) : t("noYear"));
+}
+
+function rescanButton(title, busy, onclick) {
+  const b = el("button", busy ? "rescan busy" : "rescan");
+  b.innerHTML = ICON.refresh;
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.disabled = busy;
+  b.onclick = onclick;
+  return b;
+}
+
+// ---------------------------------------------------------------- Tree
+function renderTree() {
+  const tree = $("tree");
+  tree.textContent = "";
+  if (!lib) return;
+  const frag = document.createDocumentFragment();
+  const artists = [...lib.artists].sort((a, b) => coll.compare(a.dir, b.dir));
+  for (const ar of artists) {
+    const node = renderArtist(ar);
+    if (node) frag.append(node);
+  }
+  if (!frag.childNodes.length) {
+    frag.append(el("div", "empty", lib.artists.length ? t("nothingMatches", filter) : t("noArtistDirs")));
+  }
+  tree.append(frag);
+}
+
+function renderArtist(ar) {
+  const albums = visibleAlbums(ar);
+  if (!albums.length) return null;
+  const open = expanded.has(ar.id) || autoOpen.has(ar.id);
+  const wrap = el("div", open ? "artist open" : "artist");
+  wrap.dataset.artist = ar.id;
+  wrap.style.setProperty("--h", hue(ar.dir));
+
+  const row = el("div", "row head");
+  const tw = el("button", "twisty");
+  tw.innerHTML = ICON.chevron;
+  tw.title = open ? t("hideAlbums") : t("showAlbums");
+  tw.setAttribute("aria-label", tw.title);
+  tw.setAttribute("aria-expanded", open);
+  tw.onclick = () => {
+    if (open) { expanded.delete(ar.id); autoOpen.delete(ar.id); } else expanded.add(ar.id);
+    updateArtist(ar.id);
+  };
+
+  const lab = el("label");
+  const cb = el("input");
+  cb.type = "checkbox";
+  const nSel = albums.filter(id => selected.has(id)).length;
+  cb.checked = nSel === albums.length;
+  cb.indeterminate = nSel > 0 && nSel < albums.length;
+  cb.onchange = () => setSelected(albums, cb.checked);
+  let m = t("albums", ar.albums.length);
+  if (ar.sortName && ar.sortName !== ar.dir) m = t("sortedAs", ar.sortName, m);
+  lab.append(cb, el("span", "swatch"), el("span", "name", ar.dir), el("span", "meta", m));
+  row.append(tw, lab, rescanButton(t("rescanArtist", ar.dir), refreshing.has(ar.id), () => rescan("artist", ar.id)));
+  wrap.append(row);
+
+  if (open) for (const id of albums) wrap.append(renderAlbum(lib.albums[id]));
+  return wrap;
+}
+
+function renderAlbum(al) {
+  const row = el("div", selected.has(al.id) ? "row album selected" : "row album");
+  const lab = el("label");
+  const cb = el("input");
+  cb.type = "checkbox";
+  cb.checked = selected.has(al.id);
+  cb.onchange = () => setSelected([al.id], cb.checked);
+  lab.append(cb);
+  if (al.loaded && !pending.has(al.id)) lab.append(yearBadge(al.year));
+  lab.append(el("span", "name", al.name));
+  if (pending.has(al.id)) lab.append(el("span", "loading", t("readingTags")));
+  else if (al.loaded) lab.append(el("span", "meta", t("tracks", al.tracks)));
+  row.append(lab, rescanButton(t("rescanAlbum", al.name),
+    pending.has(al.id) || refreshing.has(al.artist), () => rescan("album", al.id)));
+  return row;
+}
+
+function updateArtist(id) {
+  const old = $("tree").querySelector(`[data-artist="${id}"]`);
+  const node = renderArtist(lib.artists[id]);
+  if (old) node ? old.replaceWith(node) : old.remove();
+}
+
+function updateLibCount() {
+  const n = lib.artists.reduce((sum, ar) => sum + ar.albums.length, 0);
+  $("libCount").textContent = `${t("artists", lib.artists.length)}, ${t("albums", n)}`;
+}
+
+function setSelected(ids, on) {
+  const touched = new Set();
+  for (const id of ids) {
+    on ? selected.add(id) : selected.delete(id);
+    touched.add(lib.albums[id].artist);
+  }
+  if (on) queueLoad(ids);
+  touched.forEach(updateArtist);
+  updatePreview();
+}
+
+// ---------------------------------------------------------------- Lazy tag loading
+function queueLoad(ids) {
+  for (const id of ids) {
+    if (!lib.albums[id].loaded && !pending.has(id)) {
+      pending.add(id);
+      loadQueue.push(id);
+    }
+  }
+  pump();
+}
+
+function pump() {
+  while (activeLoads < 2 && loadQueue.length) {
+    const batch = loadQueue.splice(0, 6);
+    const gen = lib.gen;
+    activeLoads++;
+    api("/api/load", { gen, ids: batch })
+      .then(res => {
+        if (gen !== lib.gen) return;
+        for (const al of res.albums) Object.assign(lib.albums[al.id], al);
+        for (const ar of res.artists) Object.assign(lib.artists[ar.id], ar);
+      })
+      .catch(showError)
+      .finally(() => {
+        activeLoads--;
+        if (gen === lib.gen) {
+          batch.forEach(id => pending.delete(id));
+          new Set(batch.map(id => lib.albums[id].artist)).forEach(updateArtist);
+          updatePreview();
+        }
+        pump();
+      });
+  }
+}
+
+// ---------------------------------------------------------------- Rescan
+async function rescan(kind, id) {
+  const gen = lib.gen;
+  const arId = kind === "artist" ? id : lib.albums[id].artist;
+  const ar = lib.artists[arId];
+  const busy = kind === "album" ? [id] : ar.albums.filter(a => lib.albums[a].loaded);
+  busy.forEach(a => pending.add(a));
+  if (kind === "artist") refreshing.add(arId);
+  updateArtist(arId);
+  updatePreview();
+  let msg = "", err = null;
+  try {
+    const res = await api("/api/rescan", kind === "album" ? { gen, album: id } : { gen, artist: id });
+    if (gen !== lib.gen) return;
+    const before = new Set(ar.albums);
+    for (const al of res.albums) lib.albums[al.id] = Object.assign(lib.albums[al.id] || {}, al);
+    Object.assign(ar, res.artist);
+    if (kind === "album") {
+      const al = lib.albums[id];
+      msg = t("rescannedAlbum", al.name, al.year ? t("yearIs", al.year) : t("noYearInTags"), t("tracks", al.tracks));
+    } else {
+      const now = new Set(ar.albums);
+      const added = ar.albums.filter(a => !before.has(a)).length;
+      const removed = [...before].filter(a => !now.has(a));
+      removed.forEach(a => selected.delete(a));
+      const parts = [];
+      if (added) parts.push(t("newAlbums", added));
+      if (removed.length) parts.push(t("goneAlbums", removed.length));
+      msg = t("rescannedArtist", ar.dir, parts.length ? parts.join(", ") : t("noNewAlbums"));
+      queueLoad(ar.albums.filter(a => selected.has(a)));
+    }
+  } catch (e) {
+    err = e;
+  } finally {
+    if (gen === lib.gen) {
+      busy.forEach(a => pending.delete(a));
+      refreshing.delete(arId);
+      updateArtist(arId);
+      updatePreview();
+      updateLibCount();
+    }
+  }
+  if (err) showError(err);
+  else if (msg) setStatus(msg);
+}
+
+// ---------------------------------------------------------------- Sorting
+function keyOf(k, al) {
+  const ar = lib.artists[al.artist];
+  switch (k) {
+    case "artistDir": return ar.dir;
+    case "artistTag": return tagName(ar);
+    case "artistSort": return sortName(ar);
+    case "album": return al.name;
+  }
+  return "";
+}
+
+function sortedSelection() {
+  const list = [...selected].map(id => lib.albums[id]);
+  list.sort((a, b) => a.id - b.id); // base order: folders
+  const levels = cfg.sort.filter(l => l.key !== "none");
+  list.sort((a, b) => {
+    for (const l of levels) {
+      let c;
+      if (l.key === "year") {
+        const ya = a.year || 0, yb = b.year || 0;
+        if ((ya === 0) !== (yb === 0)) return ya === 0 ? 1 : -1; // unknown year always last
+        c = ya - yb;
+      } else {
+        c = coll.compare(keyOf(l.key, a), keyOf(l.key, b));
+      }
+      if (l.desc) c = -c;
+      if (c) return c;
+    }
+    return 0;
+  });
+  return list;
+}
+
+function buildSortUI() {
+  const grid = $("sortgrid");
+  grid.textContent = "";
+  cfg.sort.forEach((lvl, i) => {
+    const key = el("select");
+    for (const k of SORT_KEYS) { const o = el("option", "", t("sort." + k)); o.value = k; key.append(o); }
+    key.value = lvl.key;
+    const dir = el("select");
+    for (const d of ["asc", "desc"]) { const o = el("option", "", t(d)); o.value = d; dir.append(o); }
+    dir.value = lvl.desc ? "desc" : "asc";
+    key.onchange = () => { lvl.key = key.value; saveCfg(); updatePreview(); };
+    dir.onchange = () => { lvl.desc = dir.value === "desc"; saveCfg(); updatePreview(); };
+    grid.append(el("span", "level", String(i + 1)), key, dir);
+  });
+}
+
+// ---------------------------------------------------------------- Preview & file name
+// Suggests the artist with the most selected albums (ties: the one that comes
+// first in the playlist); folder and sort names of all selected artists are
+// offered as choices.
+function suggestFileName(list) {
+  const counts = new Map();
+  for (const al of list) counts.set(al.artist, (counts.get(al.artist) || 0) + 1);
+  let best = null, bestN = 0;
+  for (const [id, n] of counts) if (n > bestN) { best = id; bestN = n; }
+  const dl = $("nameSuggestions");
+  dl.textContent = "";
+  const seen = new Set();
+  for (const id of counts.keys()) {
+    const ar = lib.artists[id];
+    for (const [name, hint] of [[ar.dir, "hintFolder"], [ar.sortName, "hintSort"]]) {
+      const v = name && safeName(name) + ".m3u";
+      if (!v || seen.has(v)) continue;
+      seen.add(v);
+      const o = el("option");
+      o.value = v;
+      o.label = t(hint, ar.dir);
+      dl.append(o);
+    }
+  }
+  if (fileNameAuto) {
+    $("fileName").value = best === null ? "Playlist.m3u" : safeName(lib.artists[best].dir) + ".m3u";
+  }
+}
+
+function updatePreview() {
+  const ol = $("preview");
+  ol.textContent = "";
+  $("plCount").textContent = "";
+  if (!lib) return;
+  const list = sortedSelection();
+  let tracks = 0, waiting = 0;
+  const frag = document.createDocumentFragment();
+  for (const al of list) {
+    const ar = lib.artists[al.artist];
+    const li = el("li");
+    li.style.setProperty("--h", hue(ar.dir));
+    const txt = el("div", "txt");
+    if (pending.has(al.id) || !al.loaded) {
+      waiting++;
+      li.className = "pending";
+      txt.append(el("div", "t1", al.name), el("div", "t2", ar.dir));
+      li.append(el("span", "bar-sw"), txt, el("span", "loading", t("loadingShort")));
+    } else {
+      tracks += al.tracks;
+      txt.append(el("div", "t1", al.name), el("div", "t2", `${ar.dir}, ${t("tracks", al.tracks)}`));
+      li.append(el("span", "bar-sw"), txt, yearBadge(al.year));
+    }
+    frag.append(li);
+  }
+  if (!list.length) ol.append(el("li", "empty", t("previewEmpty")));
+  ol.append(frag);
+  suggestFileName(list);
+  $("saveBtn").disabled = !list.length || waiting > 0;
+  if (list.length) {
+    $("plCount").textContent = `${t("albums", list.length)}, ${t("tracks", tracks)}`;
+    setStatus(waiting ? t("statusReading", waiting) : t("readyToSave"));
+  } else {
+    setStatus(t("ready"));
+  }
+}
+
+// ---------------------------------------------------------------- Scan / save
+async function scan() {
+  const root = $("root").value.trim();
+  if (!root) { setStatus(t("needRoot"), true); return; }
+  setStatus(t("scanning"));
+  $("scanBtn").disabled = true;
+  try {
+    lib = await api("/api/scan", { root });
+  } catch (e) {
+    showError(e);
+    return;
+  } finally {
+    $("scanBtn").disabled = false;
+  }
+  cfg.root = lib.root;
+  $("root").value = lib.root;
+  saveCfg();
+  selected.clear(); expanded.clear(); autoOpen.clear(); pending.clear(); loadQueue.length = 0;
+  fileNameAuto = true;
+  updateLibCount();
+  renderTree();
+  updatePreview();
+}
+
+async function save(overwrite = false) {
+  const ids = sortedSelection().map(a => a.id);
+  $("saveBtn").disabled = true;
+  try {
+    const res = await api("/api/playlist", {
+      gen: lib.gen, ids, extinf: cfg.extinf, dir: cfg.targetDir,
+      file: $("fileName").value.trim(), overwrite,
+    });
+    let msg = t("saved", res.path, t("tracks", res.count));
+    if (res.outside) msg += t("outside", res.outside);
+    setStatus(msg);
+  } catch (e) {
+    if (e.status === 409 && e.data && e.data.exists) {
+      if (confirm(t("overwrite", e.data.path))) return save(true);
+      setStatus(t("notSaved"));
+    } else {
+      showError(e);
+    }
+  } finally {
+    $("saveBtn").disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------- Folder picker
+let dirResolve = null, dirCurrent = "", dirParent = "";
+
+async function browse(path) {
+  try {
+    const r = await api("/api/dirs?path=" + encodeURIComponent(path || ""));
+    dirCurrent = r.path;
+    dirParent = r.parent;
+    $("dirPath").value = r.path;
+    const places = $("dirPlaces");
+    places.textContent = "";
+    for (const p of r.places) {
+      const b = el("button", "", p.kind === "home" ? t("home") : p.name);
+      b.onclick = () => browse(p.path);
+      places.append(b);
+    }
+    const list = $("dirList");
+    list.textContent = "";
+    if (!r.dirs.length) list.append(el("div", "empty", t("noSubdirs")));
+    for (const d of r.dirs) {
+      const row = el("div", "row");
+      row.innerHTML = ICON.folder;
+      row.append(el("span", "name", d.name));
+      row.onclick = () => browse(d.path);
+      list.append(row);
+    }
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function chooseDir(start) {
+  return new Promise(resolve => {
+    dirResolve = resolve;
+    $("dirDialog").showModal();
+    browse(start);
+  });
+}
+
+function closeDir(value) {
+  if ($("dirDialog").open) $("dirDialog").close();
+  if (dirResolve) { const r = dirResolve; dirResolve = null; r(value); }
+}
+
+$("dirUp").onclick = () => browse(dirParent);
+$("dirGo").onclick = () => browse($("dirPath").value);
+$("dirPath").onkeydown = e => { if (e.key === "Enter") browse($("dirPath").value); };
+$("dirOk").onclick = () => closeDir(dirCurrent);
+$("dirCancel").onclick = () => closeDir(null);
+$("dirDialog").addEventListener("close", () => closeDir(null));
+
+// ---------------------------------------------------------------- Controls
+$("rootBrowse").onclick = async () => {
+  const d = await chooseDir($("root").value.trim());
+  if (d) { $("root").value = d; scan(); }
+};
+$("scanBtn").onclick = scan;
+$("root").onkeydown = e => { if (e.key === "Enter") scan(); };
+
+$("targetBrowse").onclick = async () => {
+  const d = await chooseDir($("targetDir").value.trim() || (lib && lib.root) || "");
+  if (d) { $("targetDir").value = d; cfg.targetDir = d; saveCfg(); }
+};
+$("targetDir").oninput = () => { cfg.targetDir = $("targetDir").value.trim(); saveCfg(); };
+$("fileName").oninput = () => {
+  fileNameAuto = $("fileName").value.trim() === "";
+  if (fileNameAuto && lib) suggestFileName(sortedSelection());
+};
+$("fileName").onblur = () => {
+  const v = safeName($("fileName").value);
+  if (v && v !== $("fileName").value) $("fileName").value = v;
+};
+$("nameReset").onclick = () => { fileNameAuto = true; if (lib) suggestFileName(sortedSelection()); };
+$("extinf").onchange = () => { cfg.extinf = $("extinf").checked; saveCfg(); };
+$("saveBtn").onclick = () => save(false);
+
+let filterTimer;
+$("filter").oninput = () => {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => {
+    filter = $("filter").value.trim().toLowerCase();
+    autoOpen.clear();
+    if (lib && filter) {
+      for (const ar of lib.artists) if (!artistMatches(ar) && visibleAlbums(ar).length) autoOpen.add(ar.id);
+    }
+    renderTree();
+  }, 150);
+};
+
+$("clearSel").onclick = () => {
+  if (!lib) return;
+  selected.clear();
+  fileNameAuto = true;
+  renderTree();
+  updatePreview();
+};
+
+$("langSel").onchange = () => { cfg.lang = $("langSel").value; saveCfg(); applyLang(cfg.lang); };
+$("themeBtn").onclick = () => { applyTheme(NEXT_THEME[cfg.theme] || "auto"); saveCfg(); };
+
+$("quitBtn").onclick = async () => {
+  try { await api("/api/quit", {}); } catch {}
+  document.body.innerHTML = "";
+  document.body.append(el("div", "empty", t("quitDone")));
+  document.body.firstChild.style.margin = "auto";
+};
+
+// ---------------------------------------------------------------- Start
+(async () => {
+  try { Object.assign(cfg, await api("/api/config")); } catch {}
+  if (!Array.isArray(cfg.sort) || cfg.sort.length !== 3) {
+    cfg.sort = [{ key: "artistSort", desc: false }, { key: "year", desc: false }, { key: "none", desc: false }];
+  }
+  applyLang(cfg.lang);
+  $("root").value = cfg.root || "";
+  $("targetDir").value = cfg.targetDir || "";
+  $("fileName").value = "Playlist.m3u";
+  $("extinf").checked = cfg.extinf !== false;
+  api("/api/info").then(i => { $("version").textContent = "Playlister " + i.version; }).catch(() => {});
+  if (cfg.root) scan();
+})();
+
+</script>
+</body>
+</html>
